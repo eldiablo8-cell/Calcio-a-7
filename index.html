@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Calcio a 7 U10</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f8a3b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Calcio U10">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{--bg:#f4f6f3;--card:#fff;--tx:#1b2a1b;--mut:#6b7a6b;--ac:#1f8a3b;--ac2:#e8f5ea;--rd:#c0392b;--bd:#dde3dc;
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -35,10 +42,28 @@ h2{font-size:15px;margin:0 0 8px;color:var(--mut);text-transform:uppercase;lette
 table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
 td,th{padding:4px 3px;text-align:center}td:first-child,th:first-child{text-align:left}
 th{color:var(--mut);font-weight:600}
+.tabs{display:flex;gap:6px;margin-bottom:12px}.tabs button{flex:1;font-weight:600}
+.m{border:1px solid var(--bd);border-radius:10px;padding:10px;margin-bottom:8px}
+.mh{display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer}
+.res{font-weight:800;font-size:18px}
+.w{color:var(--ac)}.l{color:var(--rd)}.x{color:var(--mut)}
+.big{display:flex;gap:8px;text-align:center;margin-bottom:10px}
+.big div{flex:1;border:1px solid var(--bd);border-radius:10px;padding:8px}
+.big b{display:block;font-size:22px}
+.ok{color:var(--ac);font-weight:600;min-height:1.4em;margin-top:8px}
 </style>
 </head>
 <body>
+<div class="tabs">
+  <button data-tab="m">Partita</button><button data-tab="s">Storico</button><button data-tab="t">Statistiche</button>
+</div>
+
+<div id="vm">
 <div class="card">
+  <div class="row" style="margin-bottom:10px">
+    <input id="opp" placeholder="Avversario (es. Real Rossi)" maxlength="40">
+    <input id="date" type="date" style="flex:0 0 150px">
+  </div>
   <div class="score">
     <div><span id="sa">0</span><small>NOI</small></div><div>–</div><div><span id="sb">0</span><small>AVVERSARI</small></div>
   </div>
@@ -47,7 +72,7 @@ th{color:var(--mut);font-weight:600}
   <div class="sub" id="tot"></div>
   <div class="row">
     <button class="p grow" id="go">▶ Avvia</button>
-    <button id="opp">+ Gol avversari</button>
+    <button id="oppg">+ Gol avversari</button>
   </div>
   <div class="row" style="margin-top:8px">
     <button class="grow" id="next">Fine tempo</button>
@@ -78,25 +103,64 @@ th{color:var(--mut);font-weight:600}
   <h2>Riepilogo</h2>
   <div id="sum" style="overflow-x:auto"></div>
   <div class="row" style="margin-top:10px">
-    <button id="newm" class="d">Nuova partita</button>
+    <button class="p grow" id="save">💾 Salva partita nello storico</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button id="newm" class="d grow">Nuova partita senza salvare</button>
+  </div>
+  <div class="ok" id="msg"></div>
+</div>
+</div>
+
+<div id="vs" hidden>
+  <div class="card">
+    <h2>Storico partite</h2>
+    <div id="hist"></div>
+  </div>
+</div>
+
+<div id="vt" hidden>
+  <div class="card">
+    <h2>Squadra</h2>
+    <div id="tstat"></div>
+  </div>
+  <div class="card">
+    <h2>Giocatori</h2>
+    <div id="pstat" style="overflow-x:auto"></div>
+  </div>
+  <div class="card">
+    <h2>Backup</h2>
+    <div class="muted" style="margin-bottom:8px">I dati sono salvati solo su questo telefono. Scarica ogni tanto un backup, così non perdi lo storico se cancelli i dati del browser o cambi telefono.</div>
+    <div class="row">
+      <button class="grow" id="exp">⬇ Scarica backup</button>
+      <button class="grow" id="imp">⬆ Carica backup</button>
+    </div>
+    <input type="file" id="file" accept=".json,application/json" hidden>
+    <div class="ok" id="bmsg"></div>
   </div>
 </div>
 
 <script>
-var KEY="calcio7u10";
-var S={players:[],goals:[],elapsed:0,done:0,period:1,nper:3,running:false,last:0,nid:1};
+var KEY="calcio7u10",KA="calcio7u10_archivio";
+var S={players:[],goals:[],elapsed:0,done:0,period:1,nper:3,running:false,last:0,nid:1,opp:"",date:""};
+var A=[];
 try{var raw=localStorage.getItem(KEY);if(raw){var o=JSON.parse(raw);for(var k in o)S[k]=o[k];S.running=false;}}catch(e){}
+try{var ra=localStorage.getItem(KA);if(ra){A=JSON.parse(ra)||[];}}catch(e){A=[];}
 S.players.forEach(function(p){if(!p.per)p.per=[p.ms||0,0,0,0];});
 S.goals.forEach(function(g){if(!g.p)g.p=1;});
-var conf=null,ct=null;
+var conf=null,ct=null,tab="m",openId=null;
 function ask(k){conf=k;clearTimeout(ct);ct=setTimeout(function(){conf=null;render();},4000);render();}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function saveA(){try{localStorage.setItem(KA,JSON.stringify(A));}catch(e){}}
 function $(i){return document.getElementById(i);}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
 function fmt(ms){var s=Math.floor(ms/1000),m=Math.floor(s/60);s=s%60;return (m<10?"0":"")+m+":"+(s<10?"0":"")+s;}
+function today(){var d=new Date(),m=d.getMonth()+1,g=d.getDate();return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(g<10?"0":"")+g;}
+function fdate(s){var p=(s||"").split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:s;}
 function pname(id){for(var i=0;i<S.players.length;i++)if(S.players[i].id===id)return S.players[i].name;return "?";}
 function gcount(id){return S.goals.filter(function(g){return g.pid===id;}).length;}
 function started(){return S.running||S.elapsed>0||S.done>0;}
+function flash(id,t){var e=$(id);e.textContent=t;setTimeout(function(){if(e.textContent===t)e.textContent="";},4000);}
 
 function tick(){
   if(S.running){
@@ -110,7 +174,18 @@ function upd(){
   $("tot").textContent="Totale gara "+fmt(S.done+S.elapsed);
   S.players.forEach(function(p){var e=document.querySelector('[data-t="'+p.id+'"]');if(e)e.textContent=fmt(p.ms);});
 }
-function render(){
+function resetMatch(){
+  S.goals=[];S.elapsed=0;S.done=0;S.period=1;S.running=false;S.opp="";S.date="";
+  S.players.forEach(function(p){p.ms=0;p.per=[0,0,0,0];p.on=false;});
+  $("opp").value="";$("date").value=today();
+}
+function snapshot(){
+  var gf=S.goals.filter(function(g){return g.pid!==null;}).length;
+  return {id:Date.now(),date:S.date||today(),opp:S.opp||"",nper:S.nper,gf:gf,ga:S.goals.length-gf,total:S.done+S.elapsed,
+    players:S.players.map(function(p){return {name:p.name,ms:p.ms,per:p.per.slice(0,S.nper),goals:gcount(p.id)};}),
+    goals:S.goals.map(function(g){return {t:g.t,p:g.p,name:g.pid===null?null:pname(g.pid)};})};
+}
+function renderMatch(){
   if(S.nper<S.period)S.nper=S.period;
   var a=S.goals.filter(function(g){return g.pid!==null;}).length;
   $("sa").textContent=a;$("sb").textContent=S.goals.length-a;
@@ -144,11 +219,64 @@ function render(){
     h+='<td><b>'+fmt(p.ms)+'</b></td><td>'+gcount(p.id)+'</td></tr>';
   });
   $("sum").innerHTML=S.players.length?h+'</table>':'';
-  $("newm").textContent=conf==='reset'?'Sicuro? Tocca ancora per azzerare':'Nuova partita';
-  upd();save();
+  $("newm").textContent=conf==='reset'?'Sicuro? Tocca ancora per scartare la partita':'Nuova partita senza salvare';
+  upd();
 }
+function renderHist(){
+  if(!A.length){$("hist").innerHTML='<div class="muted">Nessuna partita salvata. Alla fine della gara tocca «Salva partita nello storico».</div>';return;}
+  var L=A.slice().sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:b.id-a.id;});
+  $("hist").innerHTML=L.map(function(m){
+    var c=m.gf>m.ga?'w':m.gf<m.ga?'l':'x';
+    var h='<div class="m"><div class="mh" data-a="open" data-i="'+m.id+'"><div><b>'+fdate(m.date)+'</b><div class="muted">'+(m.opp?'vs '+esc(m.opp):'Avversario non indicato')+'</div></div><div class="res '+c+'">'+m.gf+' – '+m.ga+'</div></div>';
+    if(openId===m.id){
+      h+='<div style="margin-top:10px;overflow-x:auto"><table><tr><th>Giocatore</th>';
+      for(var t=1;t<=m.nper;t++)h+='<th>T'+t+'</th>';
+      h+='<th>Tot</th><th>Gol</th></tr>';
+      m.players.forEach(function(p){
+        h+='<tr><td>'+esc(p.name)+'</td>';
+        for(var t=0;t<m.nper;t++)h+='<td>'+fmt(p.per[t]||0)+'</td>';
+        h+='<td><b>'+fmt(p.ms)+'</b></td><td>'+p.goals+'</td></tr>';
+      });
+      h+='</table></div>';
+      h+=m.goals.length?'<div style="margin-top:8px">'+m.goals.map(function(g){return '<div class="muted">T'+g.p+' '+fmt(g.t)+' – '+(g.name===null?'Avversari':'⚽ '+esc(g.name))+'</div>';}).join("")+'</div>':'';
+      h+='<div class="row" style="margin-top:10px"><button class="d" data-a="am" data-i="'+m.id+'">'+(conf==='am'+m.id?'Sicuro? Tocca ancora per eliminare':'Elimina partita')+'</button></div>';
+    }
+    return h+'</div>';
+  }).join("");
+}
+function renderStats(){
+  var T={n:A.length,v:0,p:0,s:0,gf:0,gs:0},P={};
+  A.forEach(function(m){
+    if(m.gf>m.ga)T.v++;else if(m.gf===m.ga)T.p++;else T.s++;
+    T.gf+=m.gf;T.gs+=m.ga;
+    m.players.forEach(function(pl){
+      if(!(pl.ms>0||pl.goals>0))return;
+      var k=pl.name.trim().toLowerCase();
+      var o=P[k]||(P[k]={name:pl.name,g:0,ms:0,gol:0});
+      o.g++;o.ms+=pl.ms;o.gol+=pl.goals;
+    });
+  });
+  if(!A.length){$("tstat").innerHTML='<div class="muted">Salva almeno una partita per vedere le statistiche.</div>';$("pstat").innerHTML='';return;}
+  $("tstat").innerHTML='<div class="big"><div><b>'+T.n+'</b>partite</div><div><b class="w">'+T.v+'</b>vinte</div><div><b>'+T.p+'</b>pari</div><div><b class="l">'+T.s+'</b>perse</div></div>'+
+    '<div class="big"><div><b>'+T.gf+'</b>gol fatti</div><div><b>'+T.gs+'</b>gol subiti</div><div><b>'+(T.gf-T.gs>0?'+':'')+(T.gf-T.gs)+'</b>differenza</div></div>';
+  var R=Object.keys(P).map(function(k){return P[k];}).sort(function(a,b){return b.gol-a.gol||b.ms-a.ms;});
+  var h='<table><tr><th>Giocatore</th><th>Pres.</th><th>Min tot</th><th>Min medi</th><th>Gol</th><th>Gol/p</th></tr>';
+  R.forEach(function(r){
+    h+='<tr><td>'+esc(r.name)+'</td><td>'+r.g+'</td><td>'+fmt(r.ms)+'</td><td>'+fmt(r.ms/r.g)+'</td><td><b>'+r.gol+'</b></td><td>'+(r.gol/r.g).toFixed(1)+'</td></tr>';
+  });
+  $("pstat").innerHTML=h+'</table>';
+}
+function render(){
+  document.querySelectorAll("button[data-tab]").forEach(function(b){b.className=(b.dataset.tab===tab)?"sel":"";});
+  $("vm").hidden=tab!=="m";$("vs").hidden=tab!=="s";$("vt").hidden=tab!=="t";
+  if(tab==="m")renderMatch();else if(tab==="s")renderHist();else renderStats();
+  save();
+}
+document.querySelectorAll("button[data-tab]").forEach(function(b){b.onclick=function(){tab=b.dataset.tab;conf=null;render();window.scrollTo(0,0);};});
+$("opp").oninput=function(){S.opp=this.value;save();};
+$("date").onchange=function(){S.date=this.value;save();};
 $("go").onclick=function(){S.running=!S.running;S.last=Date.now();render();};
-$("opp").onclick=function(){S.goals.push({t:S.elapsed,p:S.period,pid:null});render();};
+$("oppg").onclick=function(){S.goals.push({t:S.elapsed,p:S.period,pid:null});render();};
 $("next").onclick=function(){
   if(S.period>=S.nper)return;
   S.done+=S.elapsed;S.elapsed=0;S.period++;S.running=false;render();
@@ -156,14 +284,47 @@ $("next").onclick=function(){
 document.querySelectorAll("button[data-n]").forEach(function(b){b.onclick=function(){S.nper=Math.max(+b.dataset.n,S.period);render();};});
 $("add").onclick=function(){var v=$("name").value.trim();if(!v)return;S.players.push({id:S.nid++,name:v,on:false,ms:0,per:[0,0,0,0]});$("name").value="";render();};
 $("name").onkeydown=function(e){if(e.key==="Enter")$("add").onclick();};
+$("save").onclick=function(){
+  if(!S.goals.length&&S.done+S.elapsed===0){flash("msg","Niente da salvare: la partita non è ancora iniziata.");return;}
+  S.running=false;
+  A.push(snapshot());saveA();
+  resetMatch();render();
+  flash("msg","✓ Partita salvata nello storico. Pronta una nuova partita con la stessa rosa.");
+};
 $("newm").onclick=function(){
   if(conf!=='reset'){ask('reset');return;}
-  conf=null;S.goals=[];S.elapsed=0;S.done=0;S.period=1;S.running=false;
-  S.players.forEach(function(p){p.ms=0;p.per=[0,0,0,0];p.on=false;});render();
+  conf=null;resetMatch();render();
+};
+$("exp").onclick=function(){
+  var data=JSON.stringify({versione:1,archivio:A,rosa:S.players.map(function(p){return p.name;})},null,1);
+  var url=URL.createObjectURL(new Blob([data],{type:"application/json"}));
+  var a=document.createElement("a");a.href=url;a.download="calcio7-backup-"+today()+".json";
+  document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},2000);
+  flash("bmsg","Backup scaricato.");
+};
+$("imp").onclick=function(){$("file").click();};
+$("file").onchange=function(){
+  var f=this.files[0];if(!f)return;
+  var r=new FileReader();
+  r.onload=function(){
+    try{
+      var d=JSON.parse(r.result),n=0;
+      if(!d||!Array.isArray(d.archivio))throw 0;
+      var ids={};A.forEach(function(m){ids[m.id]=1;});
+      d.archivio.forEach(function(m){if(m&&m.id&&!ids[m.id]){A.push(m);ids[m.id]=1;n++;}});
+      saveA();render();flash("bmsg","Backup caricato: "+n+" partite aggiunte.");
+    }catch(e){flash("bmsg","File non valido.");}
+  };
+  r.readAsText(f);this.value="";
 };
 document.addEventListener("click",function(e){
-  var b=e.target.closest("button[data-a]");if(!b)return;
+  var b=e.target.closest("[data-a]");if(!b)return;
   var a=b.dataset.a,i=+b.dataset.i;
+  if(a==="open"){openId=(openId===i)?null:i;conf=null;render();return;}
+  if(a==="am"){
+    if(conf!=='am'+i){ask('am'+i);return;}
+    conf=null;A=A.filter(function(m){return m.id!==i;});openId=null;saveA();render();return;
+  }
   if(a==="rg"){S.goals.splice(i,1);}
   else{
     var p=S.players.filter(function(x){return x.id===i;})[0];if(!p)return;
@@ -176,8 +337,13 @@ document.addEventListener("click",function(e){
   }
   render();
 });
+$("opp").value=S.opp||"";$("date").value=S.date||today();
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 setInterval(tick,250);
 render();
+if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
+  window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});
+}
 </script>
 </body>
 </html>
