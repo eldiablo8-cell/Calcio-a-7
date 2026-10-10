@@ -1,0 +1,17 @@
+{
+  "name": "Calcio a 7 U10 - Tempi e gol",
+  "short_name": "Calcio U10",
+  "description": "Tempo di gioco, gol e marcatori per il calcio a 7 under 10",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1f8a3b",
+  "theme_color": "#1f8a3b",
+  "lang": "it",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
