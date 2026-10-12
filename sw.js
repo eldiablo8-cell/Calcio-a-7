@@ -1,4 +1,4 @@
-var CACHE="calcio7-v2";
+var CACHE="calcio7-v3";
 var FILES=["./","./index.html","./manifest.webmanifest","./icon-192.png","./icon-512.png"];
 self.addEventListener("install",function(e){
   e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(FILES);}).then(function(){return self.skipWaiting();}));
@@ -19,4 +19,11 @@ self.addEventListener("fetch",function(e){
       return caches.match(e.request).then(function(r){return r||caches.match("./index.html");});
     })
   );
+});
+self.addEventListener("notificationclick",function(e){
+  e.notification.close();
+  e.waitUntil(clients.matchAll({type:"window",includeUncontrolled:true}).then(function(l){
+    if(l.length)return l[0].focus();
+    return clients.openWindow("./");
+  }));
 });
