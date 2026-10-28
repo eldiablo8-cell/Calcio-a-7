@@ -76,7 +76,10 @@ th{color:var(--mut);font-weight:600}
   <div class="sub" id="tot"></div>
   <div class="row">
     <button class="p grow" id="go">▶ Avvia</button>
-    <button id="oppg">+ Gol avversari</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button class="grow" id="oppg">+ Gol avversari</button>
+    <button class="grow" id="og">+ Autogol avversario</button>
   </div>
   <div class="row" style="margin-top:8px">
     <button class="grow" id="next">Fine tempo</button>
@@ -172,6 +175,7 @@ function today(){var d=new Date(),m=d.getMonth()+1,g=d.getDate();return d.getFul
 function fdate(s){var p=(s||"").split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:s;}
 function pname(id){for(var i=0;i<S.players.length;i++)if(S.players[i].id===id)return S.players[i].name;return "?";}
 function gcount(id){return S.goals.filter(function(g){return g.pid===id;}).length;}
+function isOurs(g){return g.pid!==null||!!g.og;}
 function started(){return S.running||S.elapsed>0||S.done>0;}
 function flash(id,t){var e=$(id);e.textContent=t;setTimeout(function(){if(e.textContent===t)e.textContent="";},4000);}
 
@@ -199,10 +203,10 @@ function resetMatch(){
   $("opp").value="";$("date").value=today();$("alert").hidden=true;
 }
 function snapshot(){
-  var gf=S.goals.filter(function(g){return g.pid!==null;}).length;
+  var gf=S.goals.filter(isOurs).length;
   return {id:Date.now(),date:S.date||today(),opp:S.opp||"",nper:S.nper,gf:gf,ga:S.goals.length-gf,total:S.done+S.elapsed,
     players:S.players.map(function(p){return {name:p.name,ms:p.ms,per:p.per.slice(0,S.nper),goals:gcount(p.id)};}),
-    goals:S.goals.map(function(g){return {t:g.t,p:g.p,name:g.pid===null?null:pname(g.pid)};})};
+    goals:S.goals.map(function(g){return {t:g.t,p:g.p,name:g.pid===null?null:pname(g.pid),og:!!g.og};})};
 }
 function renderMatch(){
   if(S.nper<S.period)S.nper=S.period;
@@ -211,7 +215,7 @@ function renderMatch(){
   if(document.activeElement!==$("dur"))$("dur").value=S.dur;
   var np=("Notification" in window)?Notification.permission:"unsupported";
   $("ntxt").textContent=S.mode!=="down"?"":np==="granted"?"Notifica attiva: a tempo scaduto suona, vibra e compare un avviso.":np==="denied"?"Notifiche bloccate: attivale dalle impostazioni del sito in Chrome. Suono e avviso restano attivi.":np==="default"?"Alla prima partenza Chrome chiederà di consentire le notifiche.":"";
-  var a=S.goals.filter(function(g){return g.pid!==null;}).length;
+  var a=S.goals.filter(isOurs).length;
   $("sa").textContent=a;$("sb").textContent=S.goals.length-a;
   $("per").textContent="Tempo "+S.period+" di "+S.nper;
   $("go").textContent=S.running?"⏸ Pausa":"▶ "+(started()?"Riprendi":"Avvia partita");
@@ -228,11 +232,11 @@ function renderMatch(){
     return '<div class="pl'+(p.on?' on':'')+'"><div class="n">'+esc(p.name)+(gcount(p.id)?' ⚽'+gcount(p.id):'')+'</div>'+
     '<div class="t" data-t="'+p.id+'">'+fmt(p.ms)+'</div>'+
     '<button data-a="tog" data-i="'+p.id+'">'+lbl+'</button>'+
-    '<button data-a="goal" data-i="'+p.id+'">⚽</button>'+
+    '<button data-a="goal" data-i="'+p.id+'">⚽</button>'+(gcount(p.id)?'<button data-a="ung" data-i="'+p.id+'" title="Togli un gol">−⚽</button>':'')+
     '<button class="d" data-a="del" data-i="'+p.id+'">'+(conf==='del'+p.id?'Sicuro?':'✕')+'</button></div>';
   }).join(""):'<div class="muted">Aggiungi i giocatori per iniziare.</div>';
   $("log").innerHTML=S.goals.length?S.goals.map(function(g,i){
-    return '<div class="log"><span>T'+g.p+' '+fmt(g.t)+' – '+(g.pid===null?'Avversari':'⚽ '+esc(pname(g.pid)))+'</span><button class="d" data-a="rg" data-i="'+i+'">✕</button></div>';
+    return '<div class="log"><span>T'+g.p+' '+fmt(g.t)+' – '+(g.og?'Autogol avversario (per noi)':g.pid===null?'Avversari':'⚽ '+esc(pname(g.pid)))+'</span><button class="d" data-a="rg" data-i="'+i+'">✕</button></div>';
   }).join(""):'<div class="muted">Nessun gol ancora.</div>';
   var h='<table><tr><th>Giocatore</th>';
   for(var t=1;t<=S.nper;t++)h+='<th>T'+t+'</th>';
@@ -262,7 +266,7 @@ function renderHist(){
         h+='<td><b>'+fmt(p.ms)+'</b></td><td>'+p.goals+'</td></tr>';
       });
       h+='</table></div>';
-      h+=m.goals.length?'<div style="margin-top:8px">'+m.goals.map(function(g){return '<div class="muted">T'+g.p+' '+fmt(g.t)+' – '+(g.name===null?'Avversari':'⚽ '+esc(g.name))+'</div>';}).join("")+'</div>':'';
+      h+=m.goals.length?'<div style="margin-top:8px">'+m.goals.map(function(g){return '<div class="muted">T'+g.p+' '+fmt(g.t)+' – '+(g.og?'Autogol avversario (per noi)':g.name===null?'Avversari':'⚽ '+esc(g.name))+'</div>';}).join("")+'</div>':'';
       h+='<div class="row" style="margin-top:10px"><button class="d" data-a="am" data-i="'+m.id+'">'+(conf==='am'+m.id?'Sicuro? Tocca ancora per eliminare':'Elimina partita')+'</button></div>';
     }
     return h+'</div>';
@@ -305,6 +309,7 @@ $("go").onclick=function(){
   S.running=!S.running;S.last=Date.now();render();
 };
 $("oppg").onclick=function(){S.goals.push({t:S.elapsed,p:S.period,pid:null});render();};
+$("og").onclick=function(){S.goals.push({t:S.elapsed,p:S.period,pid:null,og:true});render();};
 $("next").onclick=function(){
   if(S.period>=S.nper)return;
   S.done+=S.elapsed;S.elapsed=0;S.period++;S.running=false;S.alerted=false;$("alert").hidden=true;render();
@@ -358,6 +363,7 @@ document.addEventListener("click",function(e){
     var p=S.players.filter(function(x){return x.id===i;})[0];if(!p)return;
     if(a==="tog")p.on=!p.on;
     else if(a==="goal")S.goals.push({t:S.elapsed,p:S.period,pid:p.id});
+    else if(a==="ung"){for(var k=S.goals.length-1;k>=0;k--){if(S.goals[k].pid===p.id){S.goals.splice(k,1);break;}}}
     else if(a==="del"){
       if(conf!=='del'+i){ask('del'+i);return;}
       conf=null;S.players=S.players.filter(function(x){return x.id!==i;});S.goals=S.goals.filter(function(g){return g.pid!==i;});
