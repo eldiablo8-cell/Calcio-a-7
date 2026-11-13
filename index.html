@@ -267,6 +267,7 @@ function renderHist(){
       });
       h+='</table></div>';
       h+=m.goals.length?'<div style="margin-top:8px">'+m.goals.map(function(g){return '<div class="muted">T'+g.p+' '+fmt(g.t)+' – '+(g.og?'Autogol avversario (per noi)':g.name===null?'Avversari':'⚽ '+esc(g.name))+'</div>';}).join("")+'</div>':'';
+      h+='<div class="row" style="margin-top:10px"><input data-opp="'+m.id+'" placeholder="Nome avversario" value="'+esc(m.opp||"")+'" maxlength="40"><button class="p" data-a="so" data-i="'+m.id+'">Salva nome</button></div>';
       h+='<div class="row" style="margin-top:10px"><button class="d" data-a="am" data-i="'+m.id+'">'+(conf==='am'+m.id?'Sicuro? Tocca ancora per eliminare':'Elimina partita')+'</button></div>';
     }
     return h+'</div>';
@@ -354,6 +355,12 @@ document.addEventListener("click",function(e){
   var b=e.target.closest("[data-a]");if(!b)return;
   var a=b.dataset.a,i=+b.dataset.i;
   if(a==="open"){openId=(openId===i)?null:i;conf=null;render();return;}
+  if(a==="so"){
+    var inp=document.querySelector('input[data-opp="'+i+'"]');
+    var mm=A.filter(function(x){return x.id===i;})[0];
+    if(mm&&inp){mm.opp=inp.value.trim();saveA();}
+    render();return;
+  }
   if(a==="am"){
     if(conf!=='am'+i){ask('am'+i);return;}
     conf=null;A=A.filter(function(m){return m.id!==i;});openId=null;saveA();render();return;
